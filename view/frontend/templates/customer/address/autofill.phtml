@@ -1,0 +1,215 @@
+<?php
+
+/** @var $block \PostcodeEu\AddressValidation\Block\Customer\Address\Autofill */
+/** @var \Hyva\Theme\Model\ViewModelRegistry $viewModels */
+/** @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp */
+/** @var \Magento\Framework\Escaper $escaper */
+
+$viewModel = $viewModels->require(\PostcodeEu\AddressValidationHyva\ViewModel\AddressAutofill::class);
+$settings = $viewModel->storeConfigHelper->getJsInit();
+$isNlEnabled = $viewModel->dataHelper->isNlComponentDisabled() === false;
+$preloadModules = ['utils.js', 'customer-address/address-autofill-intl.js'];
+
+if ($isNlEnabled) {
+    $preloadModules[] = 'model/address-nl.js';
+    $preloadModules[] = 'customer-address/address-autofill-nl.js';
+}
+
+foreach ($preloadModules as $module) {
+    $url = $escaper->escapeUrl($block->getViewFileUrl('PostcodeEu_AddressValidationHyva::js/' . $module)) ;
+    echo PHP_EOL . '<link rel="modulepreload" href="' . $url . '">';
+}
+?>
+
+<script type="application/json" id="postcode-eu-settings"><?= json_encode($settings, JSON_HEX_TAG); ?></script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+<script type="application/json" id="postcode-eu-translations">
+<?=
+    json_encode([
+        'not-found' => __('Address not found.'),
+        'generic-error' => __('An error has occurred while retrieving address data. Please contact us if the problem persists.'),
+    ], JSON_HEX_TAG);
+?>
+</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+
+<script defer src="<?= $escaper->escapeUrl($block->getViewFileUrl('PostcodeEu_AddressValidation::js/lib/postcode-eu-autocomplete-address.js')) ?>"></script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+<script type="module">
+    import { fields } from '<?= $escaper->escapeJs($block->getViewFileUrl('PostcodeEu_AddressValidationHyva::js/customer-address/form.js')) ?>';
+    import AddressAutofill from '<?= $escaper->escapeJs($block->getViewFileUrl('PostcodeEu_AddressValidationHyva::js/customer-address/address-autofill.js')) ?>';
+    import AddressAutofillIntl from '<?= $escaper->escapeJs($block->getViewFileUrl('PostcodeEu_AddressValidationHyva::js/customer-address/address-autofill-intl.js')) ?>';
+
+    // Place autofill fields into edit form.
+    fields.street.before(document.querySelector('.postcode-eu-address-autofill'));
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('addressAutofill', () => new AddressAutofill());
+        Alpine.data('addressAutofillIntl', () => new AddressAutofillIntl());
+    }, {once: true});
+
+    hyva.formValidation.addRule('intl-address-selected', function (value, options, field, context) {
+        const data = Alpine.$data(field.element);
+
+        if (data.visible === false || data.isRequired === false || data.address !== null) {
+            return true;
+        }
+
+        data.hasError = true;
+
+        return '<?= $escaper->escapeJs(__("Please enter an address and select it.")) ?>';
+    });
+</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+
+<?php if ($isNlEnabled): ?>
+<script type="module">
+    import { POSTCODE_REGEX, HOUSE_NUMBER_REGEX } from '<?= $escaper->escapeJs($block->getViewFileUrl('PostcodeEu_AddressValidationHyva::js/model/address-nl.js')) ?>';
+    import AddressAutofillNl from '<?= $escaper->escapeJs($block->getViewFileUrl('PostcodeEu_AddressValidationHyva::js/customer-address/address-autofill-nl.js')) ?>';
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('addressAutofillNl', () => new AddressAutofillNl());
+    }, {once: true});
+
+    hyva.formValidation.addRule('dutch-postcode', function (value, options, field, context) {
+        if (value === '' || POSTCODE_REGEX.test(value)) {
+            return true;
+        }
+
+        return '<?= $escaper->escapeJs(__("Please enter a valid zip/postal code.")) ?>';
+    });
+
+    hyva.formValidation.addRule('dutch-house-number', function (value, options, field, context) {
+        if (value === '' || HOUSE_NUMBER_REGEX.test(value)) {
+            return true;
+        }
+
+        return '<?= $escaper->escapeJs(__("Please enter a valid house number.")) ?>';
+    });
+
+    hyva.formValidation.addRule('dutch-house-number-addition', function (value, options, field, context) {
+        if (value === '_') {
+            return '<?= $escaper->escapeJs(__("Please select a house number.")) ?>';
+        }
+
+        return true;
+    });
+</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+<?php endif ?>
+
+<?php if ($viewModel->isHideFields()): ?>
+<style>
+    .form-address-edit:not(.address-autofill-enabled) {
+        visibility: hidden;
+
+        .street, .field.zip, .field.city, .field.region, .postcode-eu-address-autofill {
+            display: none;
+        }
+    }
+</style>
+<?php endif; ?>
+
+<div x-data="addressAutofill" class="contents postcode-eu-address-autofill">
+    <?php if (!$viewModel->dataHelper->isNlComponentDisabled()): ?>
+    <div x-data="addressAutofillNl" class="contents">
+        <div x-show="isNl" class="field field-reserved" :class="isRequired && 'required'">
+            <label class="label" for="postcode_eu_postcode">
+                <span><?= $escaper->escapeHtml(__('Zip/Postal Code')) ?></span>
+            </label>
+            <div class="control">
+                <input type="text"
+                    name="postcode_eu_postcode"
+                    id="postcode_eu_postcode"
+                    class="form-input max-w-full address-autofill-nl"
+                    placeholder="1234 AB"
+                    @input.debounce.750ms="onChange($event); onInputPostcodeHouseNumber()"
+                    :required="isRequired"
+                    data-validate='{"dutch-postcode": true}'
+                >
+            </div>
+        </div>
+
+        <div x-show="isNl" class="field field-reserved" :class="{required: isRequired, loading: loading}">
+            <label class="label" for="postcode_eu_house_number">
+                <span><?= $escaper->escapeHtml(__('House number and addition')) ?></span>
+            </label>
+            <div class="control">
+                <input type="text"
+                    name="postcode_eu_house_number"
+                    id="postcode_eu_house_number"
+                    class="form-input max-w-full address-autofill-nl"
+                    @input.debounce.750ms="onChange($event); onInputPostcodeHouseNumber()"
+                    :required="isRequired"
+                    data-validate='{"dutch-house-number": true}'
+                >
+            </div>
+        </div>
+
+        <div x-cloak x-show="houseNumberOptions.length > 0" class="field field-reserved required">
+            <label class="label" for="postcode_eu_house_number_select">
+                <span><?= $escaper->escapeHtml(__('Which house number do you mean?')) ?></span>
+            </label>
+            <div class="control">
+                <select
+                    name="postcode_eu_house_number_select"
+                    id="postcode_eu_house_number_select"
+                    class="max-w-full address-autofill-nl"
+                    @change="onChangeHouseNumberAddition"
+                    data-validate='{"dutch-house-number-addition": true}'
+                >
+                    <option value="_"><?= $escaper->escapeHtml(__('- Select house number -')) ?></option>
+                    <template x-for="option in houseNumberOptions">
+                        <option x-init="$el.value = option.value" x-text="option.label"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+    </div>
+    <?php endif ?>
+
+    <div x-show="visible" x-data="addressAutofillIntl" class="contents">
+        <div class="field field-reserved col-span-1" :class="isRequired && 'required'">
+            <label class="label" for="postcode_eu_intl">
+                <span><?= $escaper->escapeHtml(__('Start typing your address or zip/postal code')) ?></span>
+            </label>
+            <div class="control">
+                <input
+                    type="text"
+                    name="postcode_eu_intl"
+                    id="postcode_eu_intl"
+                    class="form-input max-w-full address-autofill-intl"
+                    x-ref="intlInput"
+                    @autocomplete-select="onSelect"
+                    @autocomplete-search="onSearch"
+                    @autocomplete-error="onError"
+                    @autocomplete-xhr-send="onXhrSend"
+                    :required="isRequired"
+                    data-validate='{"intl-address-selected": true}'
+                >
+            </div>
+        </div>
+
+        <?php if (!$viewModel->dataHelper->isAutofillBypassDisabled()): ?>
+        <div x-cloak x-show="hasError" class="field field-reserved col-span-full">
+            <a href="#" class="address-autofill-bypass-link" @click="visible = false; toggleFields(true, true)">
+                <?= $escaper->escapeHtml(__('Enter an address')) ?>
+            </a>
+        </div>
+        <?php endif ?>
+    </div>
+
+    <template x-if="errorMsg">
+        <div class="field field-reserved col-span-full">
+            <p class="message error" x-text="errorMsg"></p>
+        </div>
+    </template>
+
+    <?php if (!$viewModel->dataHelper->isFormattedOutputDisabled()): ?>
+    <template x-if="formattedAddress">
+        <div class="address-autofill-formatted-output col-span-full message success">
+            <address x-html="formattedAddress"></address>
+        </div>
+    </template>
+    <?php endif ?>
+</div>

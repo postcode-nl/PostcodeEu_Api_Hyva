@@ -1,0 +1,21 @@
+.postcode-eu-address-autofill .loading input[type=text] {
+    background-image: url(../img/spinner.svg);
+    background-position: center right var(--form-px);
+    background-repeat: no-repeat;
+    background-size: auto;
+}
+
+.address-autofill-bypass-link {
+    text-decoration: underline;
+}
+
+.form-address-edit {
+    .address-autofill-nl,
+    .address-autofill-intl {
+        width: 100%;
+    }
+}
+
+.address-autofill-intl {
+    max-width: 400px;
+}
