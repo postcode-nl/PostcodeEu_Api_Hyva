@@ -63,24 +63,19 @@ export default class {
             context: this.countryCode ?? 'NL',
         });
 
-        // Override methods to add form_key.
+        // Override methods to process URL template.
         this.autocompleteInstance.getSuggestions = function (context, term, response) {
             context = encodeURIComponent(context);
             term = encodeURIComponent(term);
 
             return this.xhrGet(
-                `${this.options.autocompleteUrl}/${context}/${term}?form_key=${settings.form_key}`,
+                this.options.autocompleteUrl.replace('{context}', context).replace('{term}', term),
                 response
             );
         };
 
         this.autocompleteInstance.getDetails = function (...args) {
-            const response = args.pop();
-
-            return this.xhrGet(
-                `${this.options.addressDetailsUrl}/${args.join('/')}?form_key=${settings.form_key}`,
-                response
-            );
+            return this.xhrGet(this.options.addressDetailsUrl.replace('{context}', args[0]), args.at(-1));
         };
     }
 

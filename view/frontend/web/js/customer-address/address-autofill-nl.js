@@ -29,7 +29,7 @@ export default class {
 
         if (this.isNl && form.postcode.value && form.street_1.value) {
             Promise.all([this.prefillPostcode(), this.prefillHouseNumber()])
-                .then(this.getAddress.bind(this, true))
+                .then(() => this.getAddress(true))
                 .catch(() => {
                     if (HOUSE_NUMBER_REGEX.test(getStreetValue())) {
                         // Fall back to Validate API for ambiguous house number cases.
@@ -103,9 +103,13 @@ export default class {
     async getAddress(acceptUnknownAddition = false) {
         const postcodeElement = form.postcode_eu_postcode,
             houseNumberElement = form.postcode_eu_house_number,
-            postcode = encodeURIComponent(POSTCODE_REGEX.exec(postcodeElement.value)[0].replace(/\s/g, '')),
-            houseNumber = encodeURIComponent(HOUSE_NUMBER_REGEX.exec(houseNumberElement.value)[0].trim()),
-            url = `${settings.api_actions.dutchAddressLookup}/${postcode}/${houseNumber}?form_key=${settings.form_key}`;
+            postcode = POSTCODE_REGEX.exec(postcodeElement.value)[0].replace(/\s/g, ''),
+            houseNumber = HOUSE_NUMBER_REGEX.exec(houseNumberElement.value)[0].trim(),
+            url = new URL(
+                settings.api_actions.dutchAddressLookup
+                    .replace('{postcode}', postcode)
+                    .replace('{houseNumber}', houseNumber)
+            );
 
         this.resetInputAddress();
         this.address = null;

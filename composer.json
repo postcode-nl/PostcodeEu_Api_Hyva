@@ -7,7 +7,7 @@
     "homepage": "https://www.postcode.eu",
     "require": {
         "php": "^8.0",
-        "postcode-nl/api-magento2-module": "^4.0",
+        "postcode-nl/api-magento2-module": "^4.1",
         "hyva-themes/magento2-theme-module": "^1.4"
     },
     "autoload": {
