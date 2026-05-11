@@ -94,7 +94,12 @@ export default class {
 
     onInputPostcodeHouseNumber() {
         this.$nextTick(() => { // Get validation state after DOM update.
-            if (this.isFieldValid('postcode_eu_postcode') && this.isFieldValid('postcode_eu_house_number')) {
+            if (
+                this.fields.postcode_eu_postcode
+                && this.fields.postcode_eu_house_number
+                && this.isFieldValid('postcode_eu_postcode')
+                && this.isFieldValid('postcode_eu_house_number')
+            ) {
                 this.getAddress();
             }
         });
