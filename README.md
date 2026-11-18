@@ -1,4 +1,4 @@
-## Hyvä Theme Compatibility module for Postcode.eu Address Validation
+## Hyvä Theme compatibility module for Postcode.eu Address Validation
 
 This module adds Hyvä Theme compatibility for the [address validation module by Postcode.eu](https://github.com/postcode-nl/PostcodeNl_Api_Magento2).
 

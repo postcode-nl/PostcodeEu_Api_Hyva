@@ -1,4 +1,4 @@
-import { form, streetInputs, getAddressInputs, getStreetValue } from './form.js';
+import { form, streetInputs, getAddressInputs } from './form.js';
 import { t, settings, getValidatedAddress } from '../utils.js';
 
 const addressDetailsCache = new Map();
@@ -10,6 +10,13 @@ export default class {
     address = null;
     autocompleteInstance = null;
     parent = null;
+    residenceLine = '';
+
+    get isResidenceLineVisible() {
+        return this.visible
+            && settings.show_hide_address_fields === 'format'
+            && Boolean(settings.residence_line_countries?.includes(this.countryCode));
+    }
 
     init() {
         this.$nextTick(() => {
@@ -30,6 +37,8 @@ export default class {
                 this.formattedAddress = this.getFormattedAddress();
             }
         });
+
+        this.$watch('residenceLine', () => this.onChangeResidenceLine());
 
         this.$watch('countryCode', (code) => this.onChangeCountry(code));
 
@@ -82,8 +91,9 @@ export default class {
     validatePrefilledValues() {
         const postcode = form.postcode.value,
             city = form.city.value,
-            streetAndBuilding = getStreetValue(),
-            prefilledAddressValue = `${form.postcode.value} ${form.city.value} ${streetAndBuilding}`.trim();
+            {residenceLine, street} = this.splitResidenceLine();
+
+        let prefilledAddressValue = `${postcode} ${city} ${street}`.trim();
 
         if (prefilledAddressValue === '') {
             return;
@@ -91,10 +101,26 @@ export default class {
 
         this.resetInputAddress();
 
-        if (streetAndBuilding && postcode && city) {
+        if (street && postcode && city) {
             this.loading = true;
 
-            getValidatedAddress(this.countryCode, streetAndBuilding, postcode, city)
+            getValidatedAddress(this.countryCode, street, postcode, city)
+                .then((result) => {
+                    if (result !== null) {
+                        this.residenceLine = residenceLine ?? '';
+                        return result;
+                    }
+
+                    // Not a residence line after all, retry with the full street.
+                    if (residenceLine) {
+                        const fullStreet = `${residenceLine} ${street}`;
+
+                        prefilledAddressValue = `${postcode} ${city} ${fullStreet}`.trim();
+                        return getValidatedAddress(this.countryCode, fullStreet, postcode, city);
+                    }
+
+                    return null;
+                })
                 .then((result) => {
                     if (result !== null) {
                         this.address = result;
@@ -113,6 +139,43 @@ export default class {
                 this.validateField(this.fields.postcode_eu_intl);
             });
         }
+    }
+
+    /**
+     * Split the residence line from the saved street lines.
+     *
+     * The first street line is regarded as the residence line if there's more than one line, the residence line
+     * is enabled for the country, and street values are not split into separate inputs.
+     *
+     * @return {{residenceLine: string|null, street: string}}
+     */
+    splitResidenceLine() {
+        const lines = [...streetInputs].map((input) => input.value.trim()).filter((value) => value !== ''),
+            hasResidenceLine = settings.show_hide_address_fields === 'format'
+                && settings.residence_line_countries?.includes(this.countryCode)
+                && !settings.split_street_values
+                && lines.length > 1;
+
+        if (!hasResidenceLine) {
+            return {residenceLine: null, street: lines.join(' ')};
+        }
+
+        return {residenceLine: lines[0], street: lines.slice(1).join(' ')};
+    }
+
+    /**
+     * Update the street inputs when the residence line is changed for the selected address.
+     */
+    onChangeResidenceLine() {
+        if (
+            this.address === null
+            || !this.isResidenceLineVisible
+            || this.address.country?.iso2Code !== this.countryCode
+        ) {
+            return;
+        }
+
+        this.setInputAddress(this.address);
     }
 
     getAddressDetails(context, callback) {
@@ -164,13 +227,27 @@ export default class {
 
     setInputAddress(result) {
         const setValue = (id, value) => {
-            form[id].value = value;
-            form[id].dispatchEvent(new Event(form[id].matches('input') ? 'input' : 'change', { bubbles: true }));
-            this.validateField(this.fields[form[id].name]);
-        };
+                form[id].value = value;
+                form[id].dispatchEvent(new Event(form[id].matches('input') ? 'input' : 'change', { bubbles: true }));
+                this.validateField(this.fields[form[id].name]);
+            },
+            residenceLine = this.isResidenceLineVisible ? this.residenceLine.trim() : '',
+            streetLines = [...result.streetLines],
+            lineCount = streetInputs.length;
 
-        for (let i = 0; i < result.streetLines.length; i++) {
-            setValue(`street_${i + 1}`, result.streetLines[i]);
+        if (residenceLine !== '') {
+            streetLines.unshift(residenceLine);
+        }
+
+        // Join any extra lines into the last available street input.
+        if (streetLines.length > lineCount) {
+            streetLines.push(streetLines.splice(lineCount - 1).join(' '));
+        }
+
+        // Write every street input, so lines left over from a previous or longer address are cleared
+        // (e.g. after removing the residence line).
+        for (let i = 0; i < lineCount; i++) {
+            setValue(`street_${i + 1}`, streetLines[i] ?? '');
         }
 
         setValue('city', result.address.locality);

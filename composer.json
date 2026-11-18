@@ -1,13 +1,13 @@
 {
     "name": "postcode-eu/magento2-hyva-address-validation",
-    "description": "Hyvä Themes compatibility for postcode-nl/api-magento2-module",
+    "description": "Hyvä Theme compatibility for postcode-nl/api-magento2-module",
     "type": "magento2-module",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": "BSD-2-Clause",
     "homepage": "https://www.postcode.eu",
     "require": {
         "php": "^8.0",
-        "postcode-nl/api-magento2-module": "^4.1",
+        "postcode-nl/api-magento2-module": "^4.3",
         "hyva-themes/magento2-theme-module": "^1.4"
     },
     "autoload": {

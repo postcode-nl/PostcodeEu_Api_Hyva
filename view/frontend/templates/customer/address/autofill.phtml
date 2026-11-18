@@ -4,6 +4,7 @@
 /** @var \Hyva\Theme\Model\ViewModelRegistry $viewModels */
 /** @var \Hyva\Theme\ViewModel\HyvaCsp $hyvaCsp */
 /** @var \Magento\Framework\Escaper $escaper */
+/** @var \PostcodeEu\AddressValidationHyva\ViewModel\AddressAutofill $viewModel */
 
 $viewModel = $viewModels->require(\PostcodeEu\AddressValidationHyva\ViewModel\AddressAutofill::class);
 $settings = $viewModel->storeConfigHelper->getJsInit();
@@ -189,6 +190,24 @@ foreach ($preloadModules as $module) {
                 >
             </div>
         </div>
+
+        <?php if (!$viewModel->dataHelper->isResidenceLineDisabled()): ?>
+        <div x-cloak x-show="isResidenceLineVisible" class="field field-reserved col-span-1">
+            <label class="label" for="postcode_eu_residence">
+                <span><?= $escaper->escapeHtml(__('Building, apartment, residence, etc. (optional)')) ?></span>
+            </label>
+            <div class="control">
+                <input
+                    type="text"
+                    name="postcode_eu_residence"
+                    id="postcode_eu_residence"
+                    class="form-input max-w-full"
+                    maxlength="64"
+                    x-model="residenceLine"
+                >
+            </div>
+        </div>
+        <?php endif ?>
 
         <?php if (!$viewModel->dataHelper->isAutofillBypassDisabled()): ?>
         <div x-cloak x-show="hasError" class="field field-reserved col-span-full">
